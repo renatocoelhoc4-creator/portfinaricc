@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0B3D2E" />
+  <!-- Suporte total WebApp PWA iPhone / iOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Portfinari" />
+  <link rel="manifest" href="./manifest.json" />
+  
+  <title>Portfinari - Gestão de Patrimônio</title>
+  <!-- Leaflet CSS para Mapa Realista -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{
+      --bg:#f3f0ea;
+      --card:#ffffff;
+      --ink:#12261d;
+      --mut:#6b7a72;
+      --line:#e6e2d6;
+      --chip:#f0efe8;
+      --accent:#1F8A5B;
+      --gold:#C9A24B;
+      --shadow:0 12px 32px rgba(11,61,46,.09);
+      --phone-bg:#f7f5ef;
+      --phone-frame:#111;
+      --topbar:#0B3D2E;
+      --topbar-text:#f7f5ef;
+      --p-1:#0B3D2E;
+      --p-2:#14634a;
+      --danger:#c0463a;
+      --radius:24px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(180deg,#eee7db,#e9ebea);
+      font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Em desktop exibe a casca de iPhone; Em celular expande 100% */
+    .phone-shell{
+      position: relative;
+      width: 390px;
+      max-width: 100%;
+      height: 840px;
+      max-height: 100vh;
+      background: var(--phone-bg);
+      border: 10px solid var(--phone-frame);
+      border-radius: 50px;
+      overflow: hidden;
+      box-shadow: 0 30px 65px rgba(0,0,0,.35);
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 500px) {
+      body { padding: 0; }
+      .phone-shell {
+        width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        border: 0;
+        border-radius: 0;
+      }
+    }
+
+    .island{
+      position: absolute;
+      top: 10px; left: 50%;
+      transform: translateX(-50%);
+      width: 110px; height: 28px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 20;
+    }
+
+    .status{
+      position: absolute; inset: 0 0 auto 0;
+      height: 48px;
+      padding: 6px 24px 0;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; font-weight: 700;
+      background: var(--topbar);
+      color: var(--topbar-text);
+      z-index: 15;
+    }
+
+    .bat{
+      display: inline-block; width: 22px; height: 11px;
+      border: 1.5px solid currentColor; border-radius: 4px;
+      position: relative; margin-left: 6px; vertical-align: -1px;
+    }
+    .bat::after{
+      content: ""; position: absolute; inset: 1.5px 4px 1.5px 1.5px;
+      background: currentColor; border-radius: 1px;
+    }
+
+    .appbar{
+      position: absolute; top: 48px; left: 0; right: 0;
+      height: 56px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 18px 4px 18px;
+      background: var(--topbar);
+      border-bottom: 2px solid var(--gold);
+      z-index: 15;
+    }
+
+    .brand{
+      font-family: Georgia,"Times New Roman",serif; font-style: italic;
+      font-size: 24px; color: var(--gold); letter-spacing: .02em;
+    }
+
+    .avatar{
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 1.5px solid var(--gold); background: var(--accent);
+      color: #fff; display: grid; place-items: center;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
+    .screen{
+      position: absolute;
+      top: 104px; bottom: 74px; left: 0; right: 0;
+      overflow-y: auto; padding: 16px 18px 24px;
+      scrollbar-width: none;
+    }
+    .screen::-webkit-scrollbar{ display: none; }
+
+    .tabs{
+      position: absolute; left: 0; right: 0; bottom: 0;
+      height: 74px; background: var(--card);
+      border-top: 1px solid var(--line);
+      display: flex; justify-content: space-around; align-items: flex-start;
+      padding-top: 8px; z-index: 15;
+    }
+
+    .tab{
+      width: 65px; height: 48px; border: 0; background: none;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      color: var(--mut); font-size: 10px; cursor: pointer; padding: 0;
+      font-family: inherit; transition: color 0.15s;
+    }
+    .tab svg{
+      width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .tab.active{ color: var(--accent); font-weight: 700; }
+
+    .mut{ color: var(--mut); font-size: 12px; }
+    .card{
+      background: var(--card); border-radius: 20px;
+      border: 1px solid var(--line);
+      box-shadow: 0 4px 16px rgba(11,61,46,.05);
+      padding: 16px; margin-top: 14px;
+    }
+
+    .hero{
+      background: radial-gradient(120% 90% at 100% 0,rgba(201,162,75,.28),transparent 55%),linear-gradient(135deg,var(--p-1),var(--p-2));
+      color: #f7f5ef; border-radius: 24px; padding: 20px; margin-bottom: 14px;
+    }
+    .hero .ey{ font-size: 11px; letter-spacing: .14em; color: var(--gold); font-weight: 700; text-transform: uppercase; }
+    .hero h1{ margin: 8px 0; font-size: 26px; line-height: 1.15; color: #fff; }
+
+    .btn{
+      width: 100%; padding: 12px 14px; border-radius: 12px;
+      background: var(--accent); color: #fff; border: 0;
+      font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+
+    h2{ margin: 4px 0 10px; font-size: 22px; }
+    h3{ margin: 0 0 10px; font-size: 15px; }
+    .number{ font-size: 32px; font-weight: 800; color: var(--gold); margin: 4px 0; }
+    .line{ display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 13px; }
+
+    .row{
+      display: flex; gap: 12px; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .row:last-child{ border-bottom: 0; }
+
+    .thumb{
+      width: 46px; height: 46px; border-radius: 12px; overflow: hidden; flex-shrink: 0;
+      background: #e5f0ea; display: grid; place-items: center; font-size: 20px;
+    }
+    .thumb img{ width: 100%; height: 100%; object-fit: cover; }
+
+    .asset-name{ font-size: 14px; font-weight: 700; }
+    .value{ margin-left: auto; font-weight: 700; font-size: 14px; text-align: right; }
+
+    #realMapContainer {
+      width: 100%; height: 200px; border-radius: 16px; border: 1px solid var(--line);
+      overflow: hidden; z-index: 1;
+    }
+
+    .pill{ font-size: 11px; padding: 3px 8px; border-radius: 999px; background: var(--chip); color: var(--mut); margin-left: auto; }
+    .pill.warn{ background: rgba(201,162,75,.18); color: var(--gold); font-weight: 600; }
+
+    .streak-banner {
+      background: linear-gradient(135deg, rgba(201,162,75,0.18), rgba(31,138,91,0.15));
+      border: 1px solid var(--gold); border-radius: 16px; padding: 12px;
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; cursor: pointer;
+    }
+    .streak-badge { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 12px; }
+    .streak-flame { background: #e65100; color: #fff; padding: 2px 6px; border-radius: 99px; font-size: 10px; font-weight: 800; }
+
+    .score-box { background: linear-gradient(180deg, var(--topbar), #144f3c); color: #fff; border-radius: 18px; padding: 14px; margin-top: 12px; }
+    .score-number { font-size: 34px; font-weight: 900; color: var(--gold); }
+    .score-progress-bar { height: 6px; background: rgba(255,255,255,0.2); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+    .score-progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #48bb78); width: 84%; }
+
+    .action-toast {
+      position: absolute; top: 60px; left: 50%; transform: translateX(-50%) translateY(-20px);
+      background: #0B3D2E; color: #f7f5ef; border: 1px solid var(--gold);
+      padding: 10px 16px; border-radius: 12px; font-size: 12px; font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3); opacity: 0; pointer-events: none;
+      transition: all 0.3s ease; z-index: 100; width: 88%; text-align: center;
+    }
+    .action-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .modal-overlay {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 30; display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s ease; backdrop-filter: blur(2px);
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-card {
+      width: 100%; max-height: 85%; background: var(--card);
+      border-radius: 20px 20px 0 0; padding: 18px; overflow-y: auto;
+      transform: translateY(100%); transition: transform 0.3s ease;
+    }
+    .modal-overlay.open .modal-card { transform: translateY(0); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-close { background: var(--chip); border: 0; width: 28px; height: 28px; border-radius: 50%; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <!-- Toast para Ações Interativas -->
+  <div class="action-toast" id="actionToast">
+    <span id="toastIcon">✅</span> <span id="toastMessage">Ação executada</span>
+  </div>
+
+  <!-- Modal Global de Documentos e Detalhes -->
+  <div class="modal-overlay" id="actionModalOverlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="actionModalTitle" style="margin:0;">Detalhes</h3>
+        <button class="modal-close" onclick="closeActionModal()">✕</button>
+      </div>
+      <div id="actionModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Estrutura do App/iPhone -->
+  <div class="phone-shell">
+    <div class="island"></div>
+
+    <div class="status">
+      <span id="clockDisplay">09:41</span>
+      <span>5G <span class="bat"></span></span>
+    </div>
+
+    <div class="appbar">
+      <div class="brand">Portfinari</div>
+      <div class="avatar" id="userAvatar">R</div>
+    </div>
+
+    <div class="screen" id="screen"></div>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="home">
+        <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+        Painel
+      </button>
+      <button class="tab" data-tab="bens">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+        Bens
+      </button>
+      <button class="tab" data-tab="alavancagem">
+        <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Alavancar
+      </button>
+      <button class="tab" data-tab="fam">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.7.2 4.5 2 4.5 5"/></svg>
+        Família
+      </button>
+      <button class="tab" data-tab="lgpd">
+        <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        Privacidade
+      </button>
+    </nav>
+  </div>
+
+  <script>
+    const APP_CONFIG = {
+      brand: "Portfinari",
+      userName: "Renato",
+      accent: "#1F8A5B",
+      gold: "#C9A24B",
+      theme: "dark",
+      summary: "Seu patrimônio organizado com segurança e inteligência.",
+      activeTab: "home",
+      healthScore: 840,
+      assets: [
+        { 
+          id:1, name:"Apartamento Jardins", category:"Imóveis", uf:"SP", city:"São Paulo", value:3850000, eu:50, co:50, icon:"🏢", 
+          image:"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=300&auto=format&fit=crop&q=80",
+          docs: [{ name:"Escritura registrada.pdf", size:"2.4 MB" }, { name:"Matrícula atualizada.pdf", size:"1.5 MB" }]
+        },
+        { 
+          id:2, name:"Casa de praia", category:"Imóveis", uf:"SC", city:"Bombinhas", value:2400000, eu:50, co:50, icon:"🏖️", 
+          image:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=300&auto=format&fit=crop&q=80",
+          docs: [{ name:"Escritura.pdf", size:"3.1 MB" }]
+        },
+        { 
+          id:3, name:"SUV familiar", category:"Veículos", uf:"MG", city:"Belo Horizonte", value:410000, eu:0, co:100, icon:"🚙", 
+          image:"https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=300&auto=format&fit=crop&q=80",
+          docs: [{ name:"CRLV digital.pdf", size:"450 KB" }]
+        },
+        { 
+          id:4, name:"Carteira de investimentos", category:"Investimentos", uf:"SP", city:"São Paulo", value:5200000, eu:70, co:30, icon:"📈", 
+          image:"https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=300&auto=format&fit=crop&q=80",
+          docs: [{ name:"Extrato consolidado.pdf", size:"1.8 MB" }]
+        }
+      ],
+      geoCoords: {
+        "Apartamento Jardins": [-23.565, -46.665],
+        "Casa de praia": [-27.148, -48.483],
+        "SUV familiar": [-19.920, -43.937],
+        "Carteira de investimentos": [-23.550, -46.633]
+      }
+    };
+
+    const money = new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL", maximumFractionDigits:0 });
+    const screen = document.getElementById("screen");
+
+    function showToast(msg, icon="✅") {
+      const toast = document.getElementById("actionToast");
+      document.getElementById("toastMessage").textContent = msg;
+      document.getElementById("toastIcon").textContent = icon;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2800);
+    }
+
+    function openActionModal(title, bodyHtml) {
+      document.getElementById("actionModalTitle").textContent = title;
+      document.getElementById("actionModalBody").innerHTML = bodyHtml;
+      document.getElementById("actionModalOverlay").classList.add("open");
+    }
+
+    function closeActionModal() {
+      document.getElementById("actionModalOverlay").classList.remove("open");
+    }
+
+    function startClock() {
+      setInterval(() => {
+        const d = new Date();
+        document.getElementById("clockDisplay").textContent = 
+          String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+      }, 1000);
+    }
+
+    function formatMoney(v){ return money.format(v); }
+    function totalValue(){ return APP_CONFIG.assets.reduce((sum, item) => sum + item.value, 0); }
+
+    function render(){
+      const activeTab = APP_CONFIG.activeTab || "home";
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === activeTab);
+      });
+
+      if (activeTab === "home") screen.innerHTML = renderHome();
+      else if (activeTab === "bens") screen.innerHTML = renderBens();
+      else if (activeTab === "alavancagem") screen.innerHTML = renderAlavancagem();
+      else if (activeTab === "fam") screen.innerHTML = renderFamily();
+      else if (activeTab === "lgpd") screen.innerHTML = renderPrivacy();
+
+      bindClicks();
+      if (activeTab === "home") setTimeout(initMap, 150);
+    }
+
+    function renderHome(){
+      return `
+        <div style="margin-bottom:12px;">
+          <div style="font-size:20px;font-weight:700;">Olá, ${APP_CONFIG.userName} 👋</div>
+          <div class="mut">${APP_CONFIG.summary}</div>
+        </div>
+
+        <div class="streak-banner" onclick="showToast('14 dias contínuos monitorando seu patrimônio!','🔥')">
+          <div class="streak-badge">
+            <span class="streak-flame">🔥 14 DIAS</span>
+            <span>Ofensiva Patrimonial</span>
+          </div>
+          <span style="font-size:11px;color:var(--accent);font-weight:700;">+50 pts</span>
+        </div>
+
+        <div class="hero">
+          <div class="ey">Patrimônio Consolidado</div>
+          <div class="number" style="color:#E3C676">${formatMoney(totalValue())}</div>
+          <div style="font-size:12px;color:#9be0bd;">▲ +R$ 3.050.000 (+18,5%) nos últimos 12 meses</div>
+        </div>
+
+        <div class="score-box">
+          <div style="display:flex;justify-content:space-between;">
+            <div>
+              <div style="font-size:10px;text-transform:uppercase;opacity:0.8;">Score Patrimonial</div>
+              <div class="score-number">${APP_CONFIG.healthScore}</div>
+            </div>
+            <span class="pill" style="background:var(--gold);color:#0D2D24;font-weight:800;">Blindado</span>
+          </div>
+          <div class="score-progress-bar"><div class="score-progress-fill"></div></div>
+        </div>
+
+        <div class="card">
+          <h3>Localização dos Bens</h3>
+          <div id="realMapContainer"></div>
+        </div>
+      `;
+    }
+
+    function renderBens(){
+      const list = APP_CONFIG.assets.map(a => `
+        <div class="row" onclick="openAsset(${a.id})">
+          <div class="thumb"><img src="${a.image}"></div>
+          <div>
+            <div class="asset-name">${a.name}</div>
+            <div class="mut">${a.category} · ${a.uf}</div>
+          </div>
+          <div class="value">${formatMoney(a.value)}</div>
+        </div>
+      `).join("");
+
+      return `<h2>Meus Bens</h2><div class="card">${list}</div>`;
+    }
+
+    function renderAlavancagem(){
+      return `
+        <h2>Alavancagem</h2>
+        <div class="hero">
+          <div class="ey">Crédito Pré-aprovado</div>
+          <div class="number" style="color:#E3C676">${formatMoney(totalValue() * 0.4)}</div>
+          <p style="margin:0;font-size:12px;">Com garantia em seus imóveis quitados.</p>
+        </div>
+        <div class="card">
+          <h3>Home Equity Inteligente</h3>
+          <p class="mut">Taxas reduzidas a partir de 0.99% a.m. + IPCA.</p>
+          <button class="btn" onclick="showToast('Simulação iniciada com especialista!','🚀')">Simular Operação</button>
+        </div>
+      `;
+    }
+
+    function renderFamily(){
+      return `
+        <h2>Família</h2>
+        <div class="card">
+          <h3>Patrimônio Compartilhado</h3>
+          <div class="number">${formatMoney(totalValue())}</div>
+          <div class="line"><span>Sua Titularidade (50%)</span><b>${formatMoney(totalValue()/2)}</b></div>
+          <div class="line"><span>Cônjuge (50%)</span><b>${formatMoney(totalValue()/2)}</b></div>
+        </div>
+      `;
+    }
+
+    function renderPrivacy(){
+      return `
+        <h2>Privacidade</h2>
+        <div class="card">
+          <h3>Proteção de Dados</h3>
+          <div class="line"><span>Criptografia de Ponta</span><b>Ativa</b></div>
+          <div class="line"><span>Conexão Biométrica (Face ID)</span><b>Ativa</b></div>
+        </div>
+      `;
+    }
+
+    let mapInstance = null;
+    function initMap() {
+      const container = document.getElementById('realMapContainer');
+      if (!container) return;
+      if (mapInstance) mapInstance.remove();
+
+      mapInstance = L.map('realMapContainer', { zoomControl: false, attributionControl: false }).setView([-23.5, -46.6], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance);
+
+      APP_CONFIG.assets.forEach(a => {
+        const coords = APP_CONFIG.geoCoords[a.name];
+        if (coords) {
+          L.marker(coords).addTo(mapInstance).bindPopup(`<b>${a.name}</b><br/>${formatMoney(a.value)}`);
+        }
+      });
+    }
+
+    window.openAsset = function(id) {
+      const asset = APP_CONFIG.assets.find(a => a.id === id);
+      if (!asset) return;
+
+      const docs = asset.docs.map(d => `
+        <div class="line">
+          <span>📄 ${d.name}</span>
+          <button class="btn" style="width:auto;padding:4px 8px;font-size:11px;" onclick="showToast('Baixando ${d.name}...','📥')">Baixar</button>
+        </div>
+      `).join("");
+
+      openActionModal(asset.name, `
+        <img src="${asset.image}" style="width:100%;height:130px;object-fit:cover;border-radius:12px;margin-bottom:10px;">
+        <div class="number">${formatMoney(asset.value)}</div>
+        <div class="mut">${asset.city} - ${asset.uf}</div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:10px 0;">
+        <h4>Documentos Protegidos</h4>
+        ${docs}
+      `);
+    };
+
+    function bindClicks(){
+      document.querySelectorAll(".tab").forEach(t => {
+        t.onclick = () => {
+          APP_CONFIG.activeTab = t.dataset.tab;
+          render();
+        };
+      });
+    }
+
+    window.onload = function() {
+      startClock();
+      render();
+    };
+  </script>
+</body>
+</html>
